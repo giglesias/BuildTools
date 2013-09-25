@@ -1,0 +1,63 @@
+<Project DefaultTargets="RunAllIntegrationTask" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+	<PropertyGroup>
+		<ProgramFiles32 Condition="Exists('$(PROGRAMFILES) (x86)')">$(PROGRAMFILES) (x86)</ProgramFiles32>
+		<ProgramFiles32 Condition="$(ProgramFiles32) == ''">$(PROGRAMFILES)</ProgramFiles32>
+		<WorkingDirectory>..</WorkingDirectory>
+		<StyleCopPath>$(ProgramFiles32)\StyleCop 4.7</StyleCopPath> 
+		<FxCopPath>$(ProgramFiles32)\Microsoft Visual Studio 11.0\Team Tools\Static Analysis Tools\FxCop</FxCopPath>
+		<MSTestPath>$(ProgramFiles32)\Microsoft Visual Studio 11.0\Common7\IDE</MSTestPath>
+		<TestResultsPath>$(WorkingDirectory)\_build\TestResults</TestResultsPath>
+		<SABaseline>0</SABaseline>
+		<CABaseline>10</CABaseline>
+		<CCBaseline>80</CCBaseline>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<SolutionFile Include="$(WorkingDirectory)\SampleApp.sln"/>
+
+		<SourceAnalysisSourceCodeFiles Include="$(WorkingDirectory)\**\*.cs" Exclude="$(WorkingDirectory)\**\*.Designer.cs"/>
+
+		<AssembliesForCA Include="$(WorkingDirectory)\SampleApp.Tests\bin\**\SampleApp.Tests.dll;
+			$(WorkingDirectory)\SampleApp\bin\**\SampleApp.dll;"/>
+
+		<TestAssemblies Include="$(WorkingDirectory)\SampleApp.Tests\bin\**\SampleApp.Tests.dll;" />
+
+		<RuleSetDirectory Include="$(ProgramFiles32)\Microsoft Visual Studio 11.0\Team Tools\Static Analysis Tools\Rule Sets"/>
+
+		<ArtifactsToClean Include="$(WorkingDirectory)\_build\results\FxCop.results.xml;
+							$(WorkingDirectory)\_build\results\StyleCopLog.txt;
+							$(WorkingDirectory)\CodeCoverage.xml;
+							$(WorkingDirectory)\CodeCoverage.html;
+							$(WorkingDirectory)\_build\testResults.trx;"/>
+
+		<TestSettingsFile Include="$(WorkingDirectory)\TestSettings.testsettings"/>
+	</ItemGroup>
+
+	<Target Name="CleanOldArtifacts">    
+		<Delete Files="@(ArtifactsToClean)" />
+		<RemoveDir Directories="$(WorkingDirectory)\_build\TestResults" />    
+	</Target>
+
+	<Target Name="RunSourceAnalysis" DependsOnTargets="CleanOldArtifacts">
+		<StyleCopTask
+					ProjectFullPath="$(MSBuildProjectFile)"
+					ForceFullAnalysis="true"
+					CacheResults="false"
+					SourceFiles="@(SourceAnalysisSourceCodeFiles)"
+					OutputFile="$(WorkingDirectory)\_build\StyleCopLog.txt"
+					OverrideSettingsFile="$(WorkingDirectory)\Settings.StyleCop"
+					ContinueOnError="false">
+					<Output TaskParameter="ViolationCount" PropertyName="Violations"/>
+		</StyleCopTask>
+		<Error Text="Source Analysis Failed. $(Violations) violations encountered." Condition=" $(SABaseline) &lt; $(Violations)  "/>
+		<Message Text="Source Analysis Succeed. $(Violations) violations encountered. Baseline: $(SABaseline) violations." Condition=" $(SABaseline)  &gt; $(Violations) or $(SABaseline) == $(Violations)"/>
+	</Target>
+		
+	<Target Name="Compile" DependsOnTargets="RunSourceAnalysis">
+		<MSBuild Projects="@(SolutionFile)" Targets="Clean;Build" Properties="Configuration=Debug;DefineConstants=TRACE;DEBUG;CODE_ANALYSIS" />
+	</Target>
+
+	<Target Name="RunAllIntegrationTask" DependsOnTargets="Compile" />
+	
+	<UsingTask AssemblyFile="$(StyleCopPath)\StyleCop.dll" TaskName="StyleCopTask"/>
+</Project>
